@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function hasOnlyKeys(data, allowedList) {
+      return data.keys().toSet().difference(allowedList.toSet()).size() == 0;
+    }
+
+    // Validation helper for UserProfile
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.username is string && data.username.size() >= 2 && data.username.size() <= 32 &&
+             data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 8 &&
+             data.flagEmoji is string && data.flagEmoji.size() >= 1 && data.flagEmoji.size() <= 16 &&
+             data.serverRegion is string && data.serverRegion.size() >= 2 && data.serverRegion.size() <= 32 &&
+             (!('avatarIndex' in data) || data.avatarIndex is int) &&
+             (!('gamesPlayed' in data) || data.gamesPlayed is int) &&
+             (!('gamesWon' in data) || data.gamesWon is int) &&
+             (!('rankPoints' in data) || data.rankPoints is int) &&
+             (!('coins' in data) || data.coins is int) &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    // Validation helper for GameRoom
+    function isValidGameRoom(data) {
+      return data.gameId is string && data.gameId.size() > 0 && data.gameId.size() <= 128 &&
+             data.serverRegion is string && data.serverRegion.size() >= 2 && data.serverRegion.size() <= 32 &&
+             data.status in ['waiting', 'playing', 'finished'] &&
+             data.hostId is string && data.hostId.size() > 0 && data.hostId.size() <= 128 &&
+             data.playerIds is list && data.playerIds.size() >= 1 && data.playerIds.size() <= 4 &&
+             (!('mode' in data) || (data.mode is string && data.mode.size() <= 32)) &&
+             (!('isPrivate' in data) || data.isPrivate is bool) &&
+             (!('roomCode' in data) || (data.roomCode is string && data.roomCode.size() <= 16)) &&
+             (!('players' in data) || data.players is map) &&
+             (!('currentTurnColor' in data) || (data.currentTurnColor is string && data.currentTurnColor.size() <= 16)) &&
+             (!('diceValue' in data) || (data.diceValue is int && data.diceValue >= 1 && data.diceValue <= 6)) &&
+             (!('hasRolled' in data) || data.hasRolled is bool) &&
+             (!('winnerId' in data) || (data.winnerId is string && data.winnerId.size() <= 128)) &&
+             (!('tokens' in data) || data.tokens is map) &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    // Validation helper for ChatMessage
+    function isValidChatMessage(data) {
+      return data.gameId is string && data.gameId.size() > 0 && data.gameId.size() <= 128 &&
+             data.senderId is string && data.senderId.size() > 0 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 32 &&
+             (!('senderColor' in data) || (data.senderColor is string && data.senderColor.size() <= 16)) &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 200;
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'username', 'countryCode', 'flagEmoji', 'serverRegion', 'createdAt']) &&
+                       hasOnlyKeys(incoming(), ['userId', 'username', 'countryCode', 'flagEmoji', 'serverRegion', 'avatarIndex', 'gamesPlayed', 'gamesWon', 'rankPoints', 'coins', 'createdAt', 'updatedAt']) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['username', 'countryCode', 'flagEmoji', 'serverRegion', 'avatarIndex', 'gamesPlayed', 'gamesWon', 'rankPoints', 'coins', 'updatedAt']);
+
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 2. Game Rooms
+    match /games/{gameId} {
+      allow get: if isSignedIn() && isValidId(gameId);
+      allow list: if isSignedIn() && (resource.data.status == 'waiting' || (request.auth.uid in resource.data.playerIds));
+
+      allow create: if isSignedIn() &&
+                       isValidId(gameId) &&
+                       incoming().gameId == gameId &&
+                       incoming().hostId == request.auth.uid &&
+                       (request.auth.uid in incoming().playerIds) &&
+                       incoming().keys().hasAll(['gameId', 'serverRegion', 'status', 'hostId', 'playerIds', 'createdAt']) &&
+                       hasOnlyKeys(incoming(), ['gameId', 'serverRegion', 'mode', 'isPrivate', 'roomCode', 'status', 'hostId', 'playerIds', 'players', 'currentTurnColor', 'diceValue', 'hasRolled', 'winnerId', 'tokens', 'createdAt', 'updatedAt']) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidGameRoom(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(gameId) &&
+                       (request.auth.uid in existing().playerIds || (existing().status == 'waiting' && request.auth.uid in incoming().playerIds)) &&
+                       incoming().gameId == existing().gameId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidGameRoom(incoming()) &&
+                       (existing().status != 'finished' || incoming().status == 'finished') &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['playerIds', 'players', 'status', 'currentTurnColor', 'diceValue', 'hasRolled', 'winnerId', 'tokens', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(gameId) && existing().hostId == request.auth.uid;
+
+      // 3. In-Game Chat Subcollection
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && isValidId(gameId) && isValidId(messageId);
+
+        allow create: if isSignedIn() &&
+                         isValidId(gameId) &&
+                         isValidId(messageId) &&
+                         incoming().senderId == request.auth.uid &&
+                         incoming().gameId == gameId &&
+                         incoming().keys().hasAll(['gameId', 'senderId', 'senderName', 'message', 'createdAt']) &&
+                         hasOnlyKeys(incoming(), ['gameId', 'senderId', 'senderName', 'senderColor', 'message', 'createdAt']) &&
+                         incoming().createdAt is timestamp &&
+                         incoming().createdAt <= request.time &&
+                         isValidChatMessage(incoming());
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

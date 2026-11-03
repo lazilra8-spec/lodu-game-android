@@ -1,0 +1,6 @@
+{
+  "name": "Anees Ludo",
+  "description": "4-player real-time global multiplayer Ludo game with country server matchmaking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

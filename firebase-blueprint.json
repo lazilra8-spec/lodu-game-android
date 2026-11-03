@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with display info, country server preference, and gameplay stats",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Google UID" },
+        "username": { "type": "string", "description": "Display name" },
+        "countryCode": { "type": "string", "description": "Country code e.g. US, IN, GB" },
+        "flagEmoji": { "type": "string", "description": "Flag emoji representation" },
+        "serverRegion": { "type": "string", "description": "Preferred server region ID" },
+        "avatarIndex": { "type": "integer", "description": "Selected avatar index" },
+        "gamesPlayed": { "type": "integer", "description": "Total games completed" },
+        "gamesWon": { "type": "integer", "description": "Total games won" },
+        "rankPoints": { "type": "integer", "description": "Matchmaking rating points" },
+        "coins": { "type": "integer", "description": "Coin balance for playing matches" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update" }
+      },
+      "required": ["userId", "username", "countryCode", "flagEmoji", "serverRegion", "createdAt"]
+    },
+    "GameRoom": {
+      "title": "GameRoom",
+      "description": "Real-time 4-player Ludo game room with turn state and tokens",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string", "description": "Unique room ID" },
+        "serverRegion": { "type": "string", "description": "Server region code" },
+        "mode": { "type": "string", "description": "4_PLAYER or 2_PLAYER" },
+        "isPrivate": { "type": "boolean", "description": "Private room flag" },
+        "roomCode": { "type": "string", "description": "6-digit join code for custom matches" },
+        "status": { "type": "string", "description": "waiting, playing, or finished" },
+        "hostId": { "type": "string", "description": "UID of the creator/host" },
+        "playerIds": { "type": "array", "description": "List of participant player UIDs" },
+        "players": { "type": "object", "description": "Map of player metadata by slot or UID" },
+        "currentTurnColor": { "type": "string", "description": "Current turn: RED, GREEN, YELLOW, BLUE" },
+        "diceValue": { "type": "integer", "description": "Last rolled dice value 1-6" },
+        "hasRolled": { "type": "boolean", "description": "True if current player has rolled and must move token" },
+        "winnerId": { "type": "string", "description": "UID of winner once game is finished" },
+        "tokens": { "type": "object", "description": "Map of 4 token positions per color" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last activity timestamp" }
+      },
+      "required": ["gameId", "serverRegion", "status", "hostId", "playerIds", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "In-game quick chat message or emoji reaction",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string", "description": "Game room ID" },
+        "senderId": { "type": "string", "description": "Sender UID" },
+        "senderName": { "type": "string", "description": "Sender display name" },
+        "senderColor": { "type": "string", "description": "Sender piece color" },
+        "message": { "type": "string", "description": "Message or emoji text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Send timestamp" }
+      },
+      "required": ["gameId", "senderId", "senderName", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public user profile and gameplay statistics"
+    },
+    "/games/{gameId}": {
+      "schema": "GameRoom",
+      "description": "Ludo game session with board state and turns"
+    },
+    "/games/{gameId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time in-game chat messages"
+    }
+  }
+}
